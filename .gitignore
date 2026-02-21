@@ -1,0 +1,29 @@
+# Entorno virtual
+.venv/
+venv/
+env/
+
+# Credenciales — NUNCA subir esto
+.env
+
+# Estado interno (se regenera automáticamente)
+state/
+archive/
+
+# Digests activos (contienen datos propios)
+digest.txt
+digest_raw.txt
+
+# Dashboard generado
+dashboard.html
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
