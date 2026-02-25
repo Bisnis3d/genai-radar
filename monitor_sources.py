@@ -43,6 +43,7 @@ LOOKBACK_DAYS = 7   # Ventana de búsqueda en días
 MIN_STARS_NEW = 10  # Mínimo stars para repos nuevos desconocidos
 MIN_HF_LIKES  = 5   # Mínimo likes en HuggingFace
 MIN_HF_DL     = 50  # Mínimo descargas en HuggingFace
+MIN_SCORE_COMMIT = 50  # Score mínimo para commits (más estricto que releases)
 
 
 # ----------------------------
@@ -373,7 +374,7 @@ KEY_REPOS = [
     "kijai/ComfyUI-WanVideoWrapper",
     "kijai/ComfyUI-HunyuanVideoWrapper",
     "kijai/ComfyUI-CogVideoXWrapper",
-    "kijai/ComfyUI-LTXVideo",
+    "Lightricks/ComfyUI-LTXVideo",
     "kijai/ComfyUI-MochiWrapper",
     "Kosinkadink/ComfyUI-AnimateDiff-Evolved",
     # Control / IP-Adapter
@@ -395,11 +396,29 @@ KEY_REPOS = [
     # Modelos base / ecosistemas
     "black-forest-labs/flux",
     "huggingface/diffusers",
-    "Wan-AI/Wan2.1",
+    "Wan-Video/Wan2.1",
     "QwenLM/Qwen2.5",
     # OpenModelDB (monitorizado via commits del repo)
     "OpenModelDB/open-model-database",
 ]
+
+# Mensajes de commit que no aportan valor al radar
+_TRIVIAL_COMMIT_PATTERNS = re.compile(
+    r"^(update\s*db|version\s*bump|bump\s*version|merge\s*pull\s*request|"
+    r"delete\s|remove\s|\.github|readme|typo|fix\s*typo|lint|"
+    r"ci:|chore:|docs:|style:|refactor:|test:|"
+    r"bump\s*deps|update\s*deps|update\s*readme|update\s*changelog|"
+    r"minor\s*fix|minor\s*update|getslotposition|validate.db|add\s*funding)",
+    re.IGNORECASE
+)
+
+def is_trivial_commit(msg: str) -> bool:
+    """Devuelve True si el mensaje de commit es ruido puro."""
+    msg = msg.strip()
+    if not msg:
+        return True
+    return bool(_TRIVIAL_COMMIT_PATTERNS.match(msg))
+
 
 def fetch_github_releases(seen: set) -> list[dict]:
     entries = []
@@ -451,8 +470,11 @@ def fetch_github_releases(seen: set) -> list[dict]:
                     url = commit.get("html_url", "")
                     if url and url not in seen:
                         msg = commit.get("commit", {}).get("message", "")[:150]
+                        # Filtro 1: descartar mensajes de commit triviales
+                        if is_trivial_commit(msg):
+                            continue
                         name = repo.split("/")[-1]
-                        entries.append({
+                        entry = {
                             "title": f"{name} — commit reciente",
                             "url": f"https://github.com/{repo}",
                             "que_es": f"Actividad reciente en {repo}.",
@@ -462,7 +484,11 @@ def fetch_github_releases(seen: set) -> list[dict]:
                             "_source": "GitHub",
                             "_ecosystem_hint": guess_ecosystem_hint(repo),
                             "_traction": 0,
-                        })
+                        }
+                        # Filtro 2: umbral de score más estricto para commits
+                        if score_entry(entry) < MIN_SCORE_COMMIT:
+                            continue
+                        entries.append(entry)
                         seen.add(f"https://github.com/{repo}")
 
         time.sleep(0.5)
@@ -561,10 +587,10 @@ def fetch_huggingface_models(seen: set) -> list[dict]:
 # FUENTE 4: RSS de vendors
 # ----------------------------
 RSS_FEEDS = [
-    ("Black Forest Labs",  "https://blackforestlabs.ai/feed/"),
-    ("Stability AI",       "https://stability.ai/feed"),
+    ("Black Forest Labs",  "https://bfl.ai/blog/rss.xml"),         # blackforestlabs.ai → bfl.ai
+        # ("Stability AI", "https://stability.ai/feed"),  # sin feed RSS público
     ("HuggingFace Blog",   "https://huggingface.co/blog/feed.xml"),
-    ("Qwen Blog",          "https://qwenlm.github.io/feed.xml"),
+    ("Qwen Blog",          "https://qwenlm.github.io/blog/index.xml"),   # Hugo → index.xml
     ("ComfyUI Blog",       "https://blog.comfy.org/feed"),
 ]
 
